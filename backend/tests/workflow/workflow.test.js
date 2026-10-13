@@ -2,18 +2,27 @@ const emergencyService = require('../../src/services/emergency.service');
 const { recommend } = require('../../src/services/recommendation.engine');
 const referralService = require('../../src/services/referral.service');
 const assignmentService = require('../../src/services/assignment.service');
+const emailService = require('../../src/services/email.service');
 
 const Emergency = require('../../src/models/Emergency');
 const Hospital = require('../../src/models/Hospital');
 const Ambulance = require('../../src/models/Ambulance');
+const User = require('../../src/models/User');
 const Referral = require('../../src/models/Referral');
 const Assignment = require('../../src/models/Assignment');
 
 jest.mock('../../src/models/Emergency');
 jest.mock('../../src/models/Hospital');
 jest.mock('../../src/models/Ambulance');
+jest.mock('../../src/models/User');
 jest.mock('../../src/models/Referral');
 jest.mock('../../src/models/Assignment');
+jest.mock('../../src/services/email.service', () => ({
+  sendReferralAccepted: jest.fn().mockResolvedValue({ messageId: 'email-1' }),
+  sendReferralDecision: jest.fn().mockResolvedValue({ messageId: 'email-1' }),
+  sendAssignmentUpdate: jest.fn().mockResolvedValue([]),
+  sendStaleResourceReminder: jest.fn().mockResolvedValue({ messageId: 'email-1' })
+}));
 jest.mock('../../src/middleware/audit', () => ({
   createAuditEvent: jest.fn(),
   sanitizeData: jest.fn((d) => d)
@@ -70,6 +79,9 @@ describe('End-to-End Emergency Workflow Happy Path Test', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    User.find = jest.fn().mockReturnValue({
+      select: jest.fn().mockResolvedValue([])
+    });
 
     stateEmergency = {
       _id: emergencyId,
@@ -167,6 +179,7 @@ describe('End-to-End Emergency Workflow Happy Path Test', () => {
       })
     }));
     Referral.updateMany = jest.fn().mockResolvedValue({ modifiedCount: 0 });
+    Referral.countDocuments = jest.fn().mockResolvedValue(1);
 
     // Assignment model mocks
     Assignment.create = jest.fn().mockImplementation((data) => {
@@ -185,6 +198,78 @@ describe('End-to-End Emergency Workflow Happy Path Test', () => {
     };
     Assignment.findById = jest.fn().mockImplementation(() => assignmentQuery);
     Assignment.findOne = jest.fn().mockImplementation(() => assignmentQuery);
+  });
+
+  test('keeps an accepted referral successful when its notification email cannot be delivered', async () => {
+    await referralService.create({ caseId, hospitalId }, coordinatorUser);
+    emailService.sendReferralDecision.mockRejectedValueOnce(new Error('SMTP unavailable'));
+    const logError = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    try {
+      const acceptedReferral = await referralService.respond(
+        referralId,
+        { decision: 'accepted', note: 'Destination confirmed' },
+        hospitalStaffUser
+      );
+
+      expect(acceptedReferral.requestStatus).toBe('accepted');
+      expect(stateEmergency.status).toBe('destination_confirmed');
+      expect(logError).toHaveBeenCalledWith(
+        '[EmailNotification] Referral response was saved, but requester email delivery failed.',
+        expect.objectContaining({ referralId, requestStatus: 'accepted', error: 'SMTP unavailable' })
+      );
+    } finally {
+      logError.mockRestore();
+    }
+  });
+
+  test('emails the original requester when a hospital rejects a referral', async () => {
+    await referralService.create({ caseId, hospitalId }, coordinatorUser);
+
+    const rejectedReferral = await referralService.respond(
+      referralId,
+      { decision: 'rejected', note: 'No capacity' },
+      hospitalStaffUser
+    );
+
+    expect(rejectedReferral.requestStatus).toBe('rejected');
+    expect(emailService.sendReferralDecision).toHaveBeenCalledWith(rejectedReferral);
+  });
+
+  test('emails the original requester when a hospital requests clarification', async () => {
+    await referralService.create({ caseId, hospitalId }, coordinatorUser);
+
+    const clarificationReferral = await referralService.respond(
+      referralId,
+      { decision: 'clarification_requested', note: 'Please confirm required resources' },
+      hospitalStaffUser
+    );
+
+    expect(clarificationReferral.requestStatus).toBe('clarification_requested');
+    expect(emailService.sendReferralDecision).toHaveBeenCalledWith(clarificationReferral);
+  });
+
+  test('keeps an ambulance assignment successful when its notification email cannot be delivered', async () => {
+    stateEmergency.status = 'destination_confirmed';
+    stateEmergency.confirmedHospitalId = hospitalId;
+    emailService.sendAssignmentUpdate.mockRejectedValueOnce(new Error('SMTP unavailable'));
+    const logError = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    try {
+      const createdAssignment = await assignmentService.create(
+        { caseId, ambulanceId },
+        coordinatorUser
+      );
+
+      expect(createdAssignment.status).toBe('assigned');
+      expect(stateEmergency.status).toBe('ambulance_assigned');
+      expect(logError).toHaveBeenCalledWith(
+        '[EmailNotification] Assignment was saved, but assignment email delivery failed.',
+        expect.objectContaining({ assignmentId, status: 'assigned', error: 'SMTP unavailable' })
+      );
+    } finally {
+      logError.mockRestore();
+    }
   });
 
   test('executes end-to-end emergency lifecycle successfully from registration to handover', async () => {
@@ -256,6 +341,8 @@ describe('End-to-End Emergency Workflow Happy Path Test', () => {
     );
 
     expect(acceptedReferral.requestStatus).toBe('accepted');
+    expect(emailService.sendReferralDecision).toHaveBeenCalledTimes(1);
+    expect(emailService.sendReferralDecision).toHaveBeenCalledWith(acceptedReferral);
     expect(stateEmergency.status).toBe('destination_confirmed');
     expect(stateEmergency.confirmedHospitalId.toString()).toBe(hospitalId);
 
@@ -312,5 +399,6 @@ describe('End-to-End Emergency Workflow Happy Path Test', () => {
     expect(handedOverAssignment.status).toBe('handed_over');
     expect(stateEmergency.status).toBe('handed_over');
     expect(stateAmbulance.status).toBe('available'); // Ambulance frees up for next dispatch
+    expect(emailService.sendAssignmentUpdate).toHaveBeenCalledTimes(4);
   });
 });

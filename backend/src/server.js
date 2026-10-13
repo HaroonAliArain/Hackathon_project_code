@@ -2,6 +2,7 @@ const http = require('http');
 const config = require('./config/env');
 const connectDB = require('./config/db');
 const app = require('./app');
+const { startResourceReminderScheduler } = require('./services/resource-reminder.service');
 
 function safeRequire(modulePath) {
   try {
@@ -54,6 +55,7 @@ const startServer = async () => {
     await connectDB();
     server.listen(config.PORT, () => {
       console.log(`EmergencyLink server running in ${config.NODE_ENV} mode on port ${config.PORT}`);
+      startResourceReminderScheduler();
     });
   } catch (error) {
     console.error('Failed to start server:', error.message);

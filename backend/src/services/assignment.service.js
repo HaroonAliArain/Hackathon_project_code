@@ -10,7 +10,37 @@ const { VALID_ASSIGNMENT_TRANSITIONS } = require('../config/constants');
 const Assignment = require('../models/Assignment');
 const Emergency = require('../models/Emergency');
 const Ambulance = require('../models/Ambulance');
+const User = require('../models/User');
+const emailService = require('./email.service');
 const { emitEmergencyStatusUpdated, emitAmbulanceStatusUpdated } = require('../sockets/emitter');
+
+async function notifyAssignmentRecipients(assignment) {
+  const assignedById = assignment.assignedBy && (assignment.assignedBy._id || assignment.assignedBy);
+  const ambulanceObjectId = assignment.ambulanceId && (assignment.ambulanceId._id || assignment.ambulanceId);
+  const recipientScopes = [];
+  if (assignedById) recipientScopes.push({ _id: assignedById });
+  if (ambulanceObjectId) recipientScopes.push({ ambulanceId: ambulanceObjectId, role: 'ambulance_staff' });
+  if (!recipientScopes.length) return;
+
+  const recipients = await User.find({
+    accountStatus: 'active',
+    $or: recipientScopes
+  }).select('name email');
+
+  await emailService.sendAssignmentUpdate(assignment, recipients);
+}
+
+async function sendAssignmentNotificationSafely(assignment) {
+  try {
+    await notifyAssignmentRecipients(assignment);
+  } catch (error) {
+    console.error('[EmailNotification] Assignment was saved, but assignment email delivery failed.', {
+      assignmentId: assignment._id.toString(),
+      status: assignment.status,
+      error: error.message
+    });
+  }
+}
 
 class AssignmentService {
   /**
@@ -105,7 +135,9 @@ class AssignmentService {
       .populate('destinationHospitalId', 'name location contactPhone status')
       .populate('assignedBy', 'name email role');
 
-    return populated || assignment;
+    const result = populated || assignment;
+    await sendAssignmentNotificationSafely(result);
+    return result;
   }
 
   /**
@@ -219,7 +251,9 @@ class AssignmentService {
       .populate('destinationHospitalId', 'name location contactPhone status')
       .populate('assignedBy', 'name email role');
 
-    return populated || assignment;
+    const result = populated || assignment;
+    await sendAssignmentNotificationSafely(result);
+    return result;
   }
 
   /**

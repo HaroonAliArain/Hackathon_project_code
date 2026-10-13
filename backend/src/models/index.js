@@ -12,6 +12,7 @@ const Referral = require('./Referral');
 const Assignment = require('./Assignment');
 const AuditEvent = require('./AuditEvent');
 const SyncEvent = require('./SyncEvent');
+const ResourceReminder = require('./ResourceReminder');
 
 module.exports = {
   User,
@@ -22,5 +23,6 @@ module.exports = {
   Referral,
   Assignment,
   AuditEvent,
-  SyncEvent
+  SyncEvent,
+  ResourceReminder
 };

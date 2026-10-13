@@ -341,6 +341,36 @@ Every API response strictly follows one of two envelope contracts:
 ```
 - **Allowed response statuses:** `accepted`, `rejected`, `clarification_requested`
 - **Success (`200 OK`):** Automatically transitions Emergency to `destination_confirmed` if accepted.
+- Accepted, rejected, and clarification-requested responses send a branded email to the original referral requester if SMTP is configured. Delivery failures are logged and do not undo the saved response.
+
+#### Referral acceptance email configuration
+Set these optional variables in the backend `.env` to enable outgoing email:
+
+```env
+APP_URL=http://localhost:5173
+SMTP_HOST=
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=
+SMTP_PASSWORD=
+SMTP_FROM="EmergencyLink <notifications@example.com>"
+```
+
+These messages contain the case reference, hospital, and status only; they do not include the emergency summary or patient details. Use a transactional SMTP account and app-specific credentials. Email is disabled until a host and sender address are configured.
+
+#### Ambulance assignment/status emails
+When an ambulance is assigned, or its assignment changes to `en_route`, `arrived`, or `handed_over`, a branded email is sent to the active assigning user and active ambulance staff assigned to that vehicle. Messages include case reference, ambulance identifier, destination, and workflow status only. SMTP delivery failures are logged and do not roll back assignment updates.
+
+#### Stale hospital resource reminders
+Stale reminders are opt-in. Set the following environment variables to enable the scheduler:
+
+```env
+RESOURCE_REMINDERS_ENABLED=true
+RESOURCE_REMINDER_INTERVAL_MINUTES=15
+RESOURCE_REMINDER_REPEAT_HOURS=24
+```
+
+The worker checks latest resource snapshots every configured interval, uses `RESOURCE_STALE_AFTER` as the freshness threshold, and sends reminders to active staff and hospital administrators for the affected facility at most once per configured repeat window (24 hours by default). Closed hospitals and hospitals without active staff recipients are skipped. Reminder delivery state is stored in the `ResourceReminder` collection. Configure a single running backend instance for this prototype; deployments with multiple replicas should use a shared job queue/leader lock. SMTP delivery errors are logged and the hospital can be retried on the next check.
 
 #### `PATCH /api/v1/referrals/:id/clarify`
 - **Access:** Private (`coordinator`, `system_admin`)

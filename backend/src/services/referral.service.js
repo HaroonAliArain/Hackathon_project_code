@@ -9,6 +9,7 @@ const { createAuditEvent } = require('../middleware/audit');
 const Referral = require('../models/Referral');
 const Emergency = require('../models/Emergency');
 const Hospital = require('../models/Hospital');
+const emailService = require('./email.service');
 const { emitReferralRequested, emitReferralResponded, emitEmergencyStatusUpdated } = require('../sockets/emitter');
 
 class ReferralService {
@@ -285,6 +286,18 @@ class ReferralService {
       .populate('respondedBy', 'name email role');
 
     emitReferralResponded(populated || referral);
+
+    if (['accepted', 'rejected', 'clarification_requested'].includes(decision)) {
+      try {
+        await emailService.sendReferralDecision(populated || referral);
+      } catch (error) {
+        console.error('[EmailNotification] Referral response was saved, but requester email delivery failed.', {
+          referralId: referral._id.toString(),
+          requestStatus: referral.requestStatus,
+          error: error.message
+        });
+      }
+    }
 
     return populated || referral;
   }
