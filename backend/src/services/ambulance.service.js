@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const ApiError = require('../utils/ApiError');
 const { createAuditEvent } = require('../middleware/audit');
+const Hospital = require('../models/Hospital');
 const Ambulance = require('../models/Ambulance');
 const { VALID_AMBULANCE_TRANSITIONS } = require('../config/constants');
 
@@ -8,6 +9,39 @@ const { VALID_AMBULANCE_TRANSITIONS } = require('../config/constants');
  * Service managing ambulance fleet state transitions and telemetry
  */
 class AmbulanceService {
+  /**
+   * Register an ambulance in the operational fleet.
+   * @param {Object} data
+   * @param {Object} user
+   * @returns {Promise<Object>}
+   */
+  async create(data, user) {
+    if (data.baseHospitalId) {
+      const hospital = await Hospital.findById(data.baseHospitalId);
+      if (!hospital) {
+        throw ApiError.notFound('Base hospital not found');
+      }
+    }
+
+    const ambulance = await Ambulance.create({
+      ...data,
+      status: 'available',
+      version: 1,
+      lastUpdatedAt: new Date()
+    });
+
+    createAuditEvent({
+      actorId: user.id || user._id,
+      actorRole: user.role,
+      eventType: 'ambulance_created',
+      recordType: 'Ambulance',
+      recordId: ambulance._id,
+      after: ambulance
+    });
+
+    return ambulance;
+  }
+
   /**
    * Retrieve all ambulances with populated base hospital information
    * @returns {Promise<Array<Object>>}

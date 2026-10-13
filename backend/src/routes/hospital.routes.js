@@ -4,7 +4,7 @@ const hospitalController = require('../controllers/hospital.controller');
 const { authenticate } = require('../middleware/auth');
 const { requireRole, requireHospitalScope } = require('../middleware/rbac');
 const validate = require('../middleware/validate');
-const { updateResourcesSchema } = require('../validation/hospital.schema');
+const { updateResourcesSchema, createHospitalSchema } = require('../validation/hospital.schema');
 
 /**
  * @route   GET /api/hospitals
@@ -12,6 +12,14 @@ const { updateResourcesSchema } = require('../validation/hospital.schema');
  * @access  Private (Authenticated)
  */
 router.get('/', authenticate, hospitalController.listHospitals);
+
+router.post(
+  '/',
+  authenticate,
+  requireRole('system_admin'),
+  validate(createHospitalSchema),
+  hospitalController.createHospital
+);
 
 /**
  * @route   GET /api/hospitals/:id/resources

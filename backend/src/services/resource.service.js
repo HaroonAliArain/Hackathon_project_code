@@ -70,6 +70,30 @@ function computeFreshness(snapshot) {
  */
 class ResourceService {
   /**
+   * Register a hospital facility.
+   * @param {Object} data
+   * @param {Object} user
+   * @returns {Promise<Object>}
+   */
+  async createHospital(data, user) {
+    const hospital = await Hospital.create({
+      ...data,
+      status: data.status || 'active'
+    });
+
+    createAuditEvent({
+      actorId: user.id || user._id,
+      actorRole: user.role,
+      eventType: 'hospital_created',
+      recordType: 'Hospital',
+      recordId: hospital._id,
+      after: hospital
+    });
+
+    return hospital;
+  }
+
+  /**
    * Get all active hospitals with latest computed resource freshness and summary
    * @returns {Promise<Array<Object>>}
    */

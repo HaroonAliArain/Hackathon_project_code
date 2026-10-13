@@ -4,7 +4,7 @@ const ambulanceController = require('../controllers/ambulance.controller');
 const { authenticate } = require('../middleware/auth');
 const { requireRole, requireAmbulanceScope } = require('../middleware/rbac');
 const validate = require('../middleware/validate');
-const { updateStatusSchema } = require('../validation/ambulance.schema');
+const { updateStatusSchema, createAmbulanceSchema } = require('../validation/ambulance.schema');
 
 /**
  * @route   GET /api/ambulances
@@ -12,6 +12,14 @@ const { updateStatusSchema } = require('../validation/ambulance.schema');
  * @access  Private (Authenticated)
  */
 router.get('/', authenticate, ambulanceController.list);
+
+router.post(
+  '/',
+  authenticate,
+  requireRole('coordinator', 'system_admin'),
+  validate(createAmbulanceSchema),
+  ambulanceController.create
+);
 
 /**
  * @route   PATCH /api/ambulances/:id/status

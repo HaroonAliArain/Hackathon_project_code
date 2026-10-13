@@ -200,6 +200,25 @@ Every API response strictly follows one of two envelope contracts:
   - `unknown`: Resource count missing or `null`
   - `unavailable`: Capacity reported as `0`
 
+#### `POST /api/v1/hospitals`
+- **Access:** Private (`system_admin`)
+- **Request Body:**
+```json
+{
+  "name": "Example Hospital",
+  "location": {
+    "lat": 12.9716,
+    "lng": 77.5946,
+    "address": "Fictional demo address"
+  },
+  "specialties": ["cardiology"],
+  "equipment": ["ct_scanner"],
+  "status": "active",
+  "contactPhone": "+1 555 0100"
+}
+```
+- **Success (`201 Created`):** Creates the hospital and records an audit event. Initial resource figures can then be recorded with `PUT /api/v1/hospitals/:id/resources`.
+
 #### `GET /api/v1/hospitals/:id/resources`
 - **Access:** Private (Authenticated)
 - **Success (`200 OK`):** Returns current latest resource snapshots and history.
@@ -209,10 +228,11 @@ Every API response strictly follows one of two envelope contracts:
 - **Request Body:**
 ```json
 {
-  "resources": [
+  "updates": [
     { "resourceType": "icu_bed", "availableCount": 6, "totalCapacity": 12 },
     { "resourceType": "ventilator", "availableCount": 5, "totalCapacity": 8 }
-  ]
+  ],
+  "verified": false
 }
 ```
 - **Success (`200 OK`):** Appends immutable `ResourceSnapshot` records and emits `resource:updated` WebSocket event.
@@ -338,6 +358,17 @@ Every API response strictly follows one of two envelope contracts:
 #### `GET /api/v1/ambulances`
 - **Access:** Private (Authenticated)
 - **Success (`200 OK`):** Returns fleet ambulances with statuses (`available`, `assigned`, `en_route`, `arrived`, `unavailable`).
+
+#### `POST /api/v1/ambulances`
+- **Access:** Private (`coordinator`, `system_admin`)
+- **Request Body:**
+```json
+{
+  "ambulanceId": "AMB-05",
+  "baseHospitalId": "6543210987abcdef01234561"
+}
+```
+- **Success (`201 Created`):** Registers the vehicle as `available` and records an audit event. `baseHospitalId` is optional but must reference an existing hospital when provided.
 
 #### `PATCH /api/v1/ambulances/:id/status`
 - **Access:** Private (`coordinator`, `ambulance_staff`, `system_admin` scoped to ambulance)

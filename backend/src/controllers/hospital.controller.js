@@ -10,6 +10,11 @@ const listHospitals = asyncHandler(async (req, res) => {
   return sendSuccess(res, hospitals, {}, 200);
 });
 
+const createHospital = asyncHandler(async (req, res) => {
+  const hospital = await resourceService.createHospital(req.body, req.user);
+  return sendSuccess(res, hospital, {}, 201);
+});
+
 /**
  * Get comprehensive resources and recent snapshot history for a specific hospital
  */
@@ -36,6 +41,7 @@ const confirmResources = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
+  createHospital,
   listHospitals,
   getResources,
   updateResources,

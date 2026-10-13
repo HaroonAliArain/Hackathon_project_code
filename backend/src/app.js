@@ -7,7 +7,7 @@ const morgan = require('morgan');
 const config = require('./config/env');
 const ApiError = require('./utils/ApiError');
 const errorHandler = require('./middleware/errorHandler');
-const { globalLimiter, authLimiter } = require('./middleware/rateLimit');
+const { globalLimiter } = require('./middleware/rateLimit');
 
 const app = express();
 
@@ -57,7 +57,6 @@ if (healthRoutes) {
 
 const authRoutes = safeRequire('./routes/auth.routes');
 if (authRoutes) {
-  app.post('/api/v1/auth/login', authLimiter);
   app.use('/api/v1/auth', authRoutes);
 }
 

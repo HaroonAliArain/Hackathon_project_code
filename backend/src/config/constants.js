@@ -94,7 +94,9 @@ const AUDIT_EVENT_TYPES = [
   'sync_conflict_created',
   'sync_conflict_resolved',
   'user_created',
-  'user_updated'
+  'user_updated',
+  'hospital_created',
+  'ambulance_created'
 ];
 
 const RECOMMENDATION_WEIGHTS = {

@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const app = require('../../src/app');
 const User = require('../../src/models/User');
 const envConfig = require('../../src/config/env');
+const { authLimiter } = require('../../src/middleware/rateLimit');
 
 jest.mock('../../src/models/User');
 jest.mock('../../src/middleware/audit', () => ({
@@ -39,6 +40,25 @@ describe('Auth API Integration Tests (supertest)', () => {
         };
       }
     };
+  });
+
+  test('applies the login rate limiter exactly once to the login route', () => {
+    const authRouterLayer = app._router.stack.find(
+      (layer) =>
+        layer.name === 'router' &&
+        Array.isArray(layer.handle.stack) &&
+        layer.handle.stack.some((routeLayer) => routeLayer.route?.path === '/login')
+    );
+    const loginRouteLayer = authRouterLayer?.handle.stack.find(
+      (routeLayer) => routeLayer.route?.path === '/login'
+    );
+    const appLevelLoginLimiters = app._router.stack.filter(
+      (layer) => layer.route?.path === '/api/v1/auth/login'
+    );
+
+    expect(loginRouteLayer).toBeDefined();
+    expect(loginRouteLayer.route.stack.filter((handler) => handler.handle === authLimiter)).toHaveLength(1);
+    expect(appLevelLoginLimiters).toHaveLength(0);
   });
 
   describe('POST /api/v1/auth/login', () => {

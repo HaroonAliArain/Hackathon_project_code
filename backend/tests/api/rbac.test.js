@@ -184,6 +184,72 @@ describe('RBAC & Scoping API Integration Tests', () => {
     });
   });
 
+  describe('Hospital registration on POST /api/v1/hospitals', () => {
+    test('system_admin can create a hospital', async () => {
+      const { userDoc, token } = generateUserAndToken('system_admin');
+      setupUserMock(userDoc);
+      resourceService.createHospital.mockResolvedValue({ _id: otherHospitalId, name: 'New Hospital' });
+
+      const res = await request(app)
+        .post('/api/v1/hospitals')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          name: 'New Hospital',
+          location: { lat: 12.97, lng: 77.59, address: 'Demo address' }
+        });
+
+      expect(res.status).toBe(201);
+      expect(resourceService.createHospital).toHaveBeenCalled();
+    });
+
+    test('coordinator cannot create a hospital', async () => {
+      const { userDoc, token } = generateUserAndToken('coordinator');
+      setupUserMock(userDoc);
+
+      const res = await request(app)
+        .post('/api/v1/hospitals')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          name: 'New Hospital',
+          location: { lat: 12.97, lng: 77.59, address: 'Demo address' }
+        });
+
+      expect(res.status).toBe(403);
+      expect(resourceService.createHospital).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Ambulance registration on POST /api/v1/ambulances', () => {
+    test('coordinator can create an ambulance', async () => {
+      const { userDoc, token } = generateUserAndToken('coordinator');
+      setupUserMock(userDoc);
+      ambulanceService.create.mockResolvedValue({ _id: otherAmbulanceId, ambulanceId: 'AMB-NEW' });
+
+      const res = await request(app)
+        .post('/api/v1/ambulances')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ ambulanceId: 'AMB-NEW' });
+
+      expect(res.status).toBe(201);
+      expect(ambulanceService.create).toHaveBeenCalled();
+    });
+
+    test('ambulance_staff cannot register fleet vehicles', async () => {
+      const { userDoc, token } = generateUserAndToken('ambulance_staff', {
+        ambulanceId: ownAmbulanceId
+      });
+      setupUserMock(userDoc);
+
+      const res = await request(app)
+        .post('/api/v1/ambulances')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ ambulanceId: 'AMB-NEW' });
+
+      expect(res.status).toBe(403);
+      expect(ambulanceService.create).not.toHaveBeenCalled();
+    });
+  });
+
   describe('Ambulance Scoping on PATCH /api/v1/ambulances/:id/status', () => {
     test('ambulance_staff can update status of their OWN ambulance (200)', async () => {
       const { userDoc, token } = generateUserAndToken('ambulance_staff', {

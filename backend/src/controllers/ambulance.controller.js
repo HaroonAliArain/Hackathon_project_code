@@ -11,6 +11,11 @@ const list = asyncHandler(async (req, res) => {
   return sendSuccess(res, ambulances, {}, 200);
 });
 
+const create = asyncHandler(async (req, res) => {
+  const ambulance = await ambulanceService.create(req.body, req.user);
+  return sendSuccess(res, ambulance, {}, 201);
+});
+
 /**
  * Update status and location of an ambulance
  * Verifies ambulance_staff scope
@@ -38,6 +43,7 @@ const updateStatus = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
+  create,
   list,
   updateStatus
 };

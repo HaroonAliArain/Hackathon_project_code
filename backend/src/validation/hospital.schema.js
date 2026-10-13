@@ -1,5 +1,5 @@
 const { z } = require('zod');
-const { RESOURCE_TYPES } = require('../config/constants');
+const { RESOURCE_TYPES, HOSPITAL_STATUSES } = require('../config/constants');
 
 const allowedResourceTypes = Array.from(
   new Set([
@@ -34,7 +34,21 @@ const confirmResourcesSchema = z.object({
   note: z.string().optional()
 }).optional().default({});
 
+const createHospitalSchema = z.object({
+  name: z.string().trim().min(2).max(160),
+  location: z.object({
+    lat: z.number().min(-90).max(90),
+    lng: z.number().min(-180).max(180),
+    address: z.string().trim().min(2).max(300)
+  }),
+  specialties: z.array(z.string().trim().min(1).max(100)).optional().default([]),
+  equipment: z.array(z.string().trim().min(1).max(100)).optional().default([]),
+  status: z.enum(HOSPITAL_STATUSES).optional().default('active'),
+  contactPhone: z.string().trim().max(40).optional()
+});
+
 module.exports = {
   updateResourcesSchema,
-  confirmResourcesSchema
+  confirmResourcesSchema,
+  createHospitalSchema
 };

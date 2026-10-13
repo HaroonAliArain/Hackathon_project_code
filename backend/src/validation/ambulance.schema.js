@@ -1,5 +1,6 @@
 const { z } = require('zod');
 const { AMBULANCE_STATUSES } = require('../config/constants');
+const mongoose = require('mongoose');
 
 // Combine model-defined statuses with common lifecycle variants
 const allowedStatuses = Array.from(
@@ -27,6 +28,18 @@ const updateStatusSchema = z.object({
     .optional()
 });
 
+const createAmbulanceSchema = z.object({
+  ambulanceId: z.string().trim().min(2).max(40),
+  baseHospitalId: z.string().refine((value) => mongoose.Types.ObjectId.isValid(value), 'A valid base hospital ID is required').optional().nullable(),
+  lastKnownLocation: z
+    .object({
+      lat: z.number().min(-90).max(90),
+      lng: z.number().min(-180).max(180)
+    })
+    .optional()
+});
+
 module.exports = {
-  updateStatusSchema
+  updateStatusSchema,
+  createAmbulanceSchema
 };
